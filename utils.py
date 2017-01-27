@@ -43,3 +43,15 @@ def plot_bounding_box(image_path, coords, image_size=(300,300)):
     ax.add_patch(rect)
     plt.show()
 
+
+def parse_pasval_voc_xml(xml_path):
+    root = ET.parse(xml).getroot()
+    path = root.findtext("path")
+    width = int(root.findtext("size/width"))
+    height = int(root.findtext("size/height"))
+    xmin = int(root.findtext("./object/bndbox/xmin")) / width
+    ymin = int(root.findtext("./object/bndbox/ymin")) / height
+    xmax = int(root.findtext("./object/bndbox/xmax")) / width
+    ymax = int(root.findtext("./object/bndbox/ymax")) / height
+    coords = [xmin, ymin, xmax, ymax]
+    return path, coords
