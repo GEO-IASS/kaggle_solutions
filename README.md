@@ -1,6 +1,5 @@
-Solutions to different competitions
+Code used for different kaggle competitions
 
----
 ## [Dogs vs. Cats Redux: Kernels Edition](https://www.kaggle.com/c/dogs-vs-cats-redux-kernels-edition)
 
 Distinguish images of dogs from cats.
