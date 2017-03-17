@@ -5,10 +5,10 @@ Solutions to different competitions
 
 Distinguish images of dogs from cats.
 
-*Loss* : 
+**Loss** : 
 
 0.05799
 
-*Position on Public Leaderborad*:
+**Position on Public Leaderborad**:
 
 105 of 1314 - Top 8% 
