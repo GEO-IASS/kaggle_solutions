@@ -9,116 +9,134 @@ Adapted from code contributed by BigMoyan.
 '''
 
 import numpy as np
-from keras.layers import merge, Input, Lambda
-from keras.layers import Dense, Activation, Flatten
-from keras.layers import Convolution2D, MaxPooling2D, ZeroPadding2D, AveragePooling2D
+
+from keras.layers import Input
+from keras import layers
+from keras.layers import Activation
+from keras.layers import Conv2D
+from keras.layers import MaxPooling2D
+from keras.layers import ZeroPadding2D
+from keras.layers import GlobalAveragePooling2D
 from keras.layers import BatchNormalization
+from keras.layers import Lambda
 from keras.models import Model
+
+import keras.backend as K
 
 
 def preprocess_input(x):
     ''' Substract Imagenet mean and reverse channel axis
     '''
     return (x - np.array([103.939, 116.779, 123.68]))[...,::-1]
-
+                         
 def identity_block(input_tensor, kernel_size, filters, stage, block):
-    '''The identity_block is the block that has no conv layer at shortcut
+    """The identity block is the block that has no conv layer at shortcut.
 
     # Arguments
         input_tensor: input tensor
         kernel_size: defualt 3, the kernel size of middle conv layer at main path
-        filters: list of integers, the nb_filters of 3 conv layer at main path
+        filters: list of integers, the filterss of 3 conv layer at main path
         stage: integer, current stage label, used for generating layer names
         block: 'a','b'..., current block label, used for generating layer names
-    '''
-    nb_filter1, nb_filter2, nb_filter3 = filters
-    
-    bn_axis = 3
 
+    # Returns
+        Output tensor for the block.
+    """
+    filters1, filters2, filters3 = filters
+    if K.image_data_format() == 'channels_last':
+        bn_axis = 3
+    else:
+        bn_axis = 1
     conv_name_base = 'res' + str(stage) + block + '_branch'
     bn_name_base = 'bn' + str(stage) + block + '_branch'
 
-    x = Convolution2D(nb_filter1, 1, 1, name=conv_name_base + '2a')(input_tensor)
+    x = Conv2D(filters1, (1, 1), name=conv_name_base + '2a')(input_tensor)
     x = BatchNormalization(axis=bn_axis, name=bn_name_base + '2a')(x)
     x = Activation('relu')(x)
 
-    x = Convolution2D(nb_filter2, kernel_size, kernel_size,
-                      border_mode='same', name=conv_name_base + '2b')(x)
+    x = Conv2D(filters2, kernel_size,
+               padding='same', name=conv_name_base + '2b')(x)
     x = BatchNormalization(axis=bn_axis, name=bn_name_base + '2b')(x)
     x = Activation('relu')(x)
 
-    x = Convolution2D(nb_filter3, 1, 1, name=conv_name_base + '2c')(x)
+    x = Conv2D(filters3, (1, 1), name=conv_name_base + '2c')(x)
     x = BatchNormalization(axis=bn_axis, name=bn_name_base + '2c')(x)
 
-    x = merge([x, input_tensor], mode='sum')
+    x = layers.add([x, input_tensor])
     x = Activation('relu')(x)
     return x
 
 
 def conv_block(input_tensor, kernel_size, filters, stage, block, strides=(2, 2)):
-    '''conv_block is the block that has a conv layer at shortcut
+    """conv_block is the block that has a conv layer at shortcut
 
     # Arguments
         input_tensor: input tensor
         kernel_size: defualt 3, the kernel size of middle conv layer at main path
-        filters: list of integers, the nb_filters of 3 conv layer at main path
+        filters: list of integers, the filterss of 3 conv layer at main path
         stage: integer, current stage label, used for generating layer names
         block: 'a','b'..., current block label, used for generating layer names
 
-    Note that from stage 3, the first conv layer at main path is with subsample=(2,2)
-    And the shortcut should have subsample=(2,2) as well
-    '''
-    nb_filter1, nb_filter2, nb_filter3 = filters
-    
-    bn_axis = 3
+    # Returns
+        Output tensor for the block.
 
+    Note that from stage 3, the first conv layer at main path is with strides=(2,2)
+    And the shortcut should have strides=(2,2) as well
+    """
+    filters1, filters2, filters3 = filters
+    if K.image_data_format() == 'channels_last':
+        bn_axis = 3
+    else:
+        bn_axis = 1
     conv_name_base = 'res' + str(stage) + block + '_branch'
     bn_name_base = 'bn' + str(stage) + block + '_branch'
 
-    x = Convolution2D(nb_filter1, 1, 1, subsample=strides,
-                      name=conv_name_base + '2a')(input_tensor)
+    x = Conv2D(filters1, (1, 1), strides=strides,
+               name=conv_name_base + '2a')(input_tensor)
     x = BatchNormalization(axis=bn_axis, name=bn_name_base + '2a')(x)
     x = Activation('relu')(x)
 
-    x = Convolution2D(nb_filter2, kernel_size, kernel_size, border_mode='same',
-                      name=conv_name_base + '2b')(x)
+    x = Conv2D(filters2, kernel_size, padding='same',
+               name=conv_name_base + '2b')(x)
     x = BatchNormalization(axis=bn_axis, name=bn_name_base + '2b')(x)
     x = Activation('relu')(x)
 
-    x = Convolution2D(nb_filter3, 1, 1, name=conv_name_base + '2c')(x)
+    x = Conv2D(filters3, (1, 1), name=conv_name_base + '2c')(x)
     x = BatchNormalization(axis=bn_axis, name=bn_name_base + '2c')(x)
 
-    shortcut = Convolution2D(nb_filter3, 1, 1, subsample=strides,
-                             name=conv_name_base + '1')(input_tensor)
+    shortcut = Conv2D(filters3, (1, 1), strides=strides,
+                      name=conv_name_base + '1')(input_tensor)
     shortcut = BatchNormalization(axis=bn_axis, name=bn_name_base + '1')(shortcut)
 
-    x = merge([x, shortcut], mode='sum')
+    x = layers.add([x, shortcut])
     x = Activation('relu')(x)
     return x
 
 
-def ResNet50(include_top=False, input_shape=(224,224,3), weights_path=None):
-    '''Instantiate the ResNet50 architecture,
-    optionally loading weights pre-trained
-    on ImageNet.
+def ResNet50_GAP(input_shape=(224,224,3), weights_path=None):
+    """ Resnet50 variation for fine-tuning
 
-    # Arguments
-        include_top: whether to include the 3 fully-connected
-            layers at the top of the network.
-        input_shape: tuple of 3 numbers indicating the dimensions of the image
-        weights_path: path to the weights.
+    Parameters
+    ----------
+    input_shape: tuple, optional
 
-    # Returns
-        A Keras model instance.
-    '''
+    weights_path : str, optional
+        or "imagenet" (pre-training on ImageNet).
+
+    Returns
+    -------
+    A Keras model instance.
+    
+    """
 
     img_input = Input(shape=input_shape)
     
     bn_axis = 3
-
+    
     x = Lambda(preprocess_input)(img_input)
-    x = ZeroPadding2D((3, 3))(x)
-    x = Convolution2D(64, 7, 7, subsample=(2, 2), name='conv1')(x)
+    
+    x = ZeroPadding2D((3, 3))(img_input)
+    x = Conv2D(64, (7, 7), strides=(2, 2), name='conv1')(x)
     x = BatchNormalization(axis=bn_axis, name='bn_conv1')(x)
     x = Activation('relu')(x)
     x = MaxPooling2D((3, 3), strides=(2, 2))(x)
@@ -143,14 +161,12 @@ def ResNet50(include_top=False, input_shape=(224,224,3), weights_path=None):
     x = identity_block(x, 3, [512, 512, 2048], stage=5, block='b')
     x = identity_block(x, 3, [512, 512, 2048], stage=5, block='c')
 
-    if include_top:
-        x = AveragePooling2D( (7, 7), name='avg_pool')(x)
-        x = Flatten()(x)
-        x = Dense(1000, activation='softmax', name='fc1000')(x)
+    x = GlobalAveragePooling2D()(x)
 
-    model = Model(img_input, x)
-
+    model = Model(img_input, x, name='resnet50')
+    
     if weights_path is not None:
         model.load_weights(weights_path)
-
+        
     return model
+

@@ -1,10 +1,11 @@
 
 from keras.preprocessing.image import ImageDataGenerator
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, confusion_matrix
 from scipy.misc import imread, imresize
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 import numpy as np
+import seaborn as sns
 import xml.etree.ElementTree as ET
 
 def full_report(model, directory, generator=ImageDataGenerator(), batch_size=8, n=5):
@@ -12,15 +13,26 @@ def full_report(model, directory, generator=ImageDataGenerator(), batch_size=8, 
     batches = generator.flow_from_directory(directory, model.input_shape[1:3],
                                             shuffle=False,
                                             batch_size=batch_size)
-    filenames = batches.filenames
+    filenames = ["{}\\{}".format(directory, x) for x in batches.filenames]
+    print(filenames[0])
+    true_labels = batches.classes
     print("Generating predictions...")
     our_predictions = model.predict_generator(batches, batches.nb_sample)
     our_labels = our_predictions.argmax(1)
-    print()
+    print("-"*80)
+    print(batches.class_indices)
+    print("-"*80)
     print("PRECISION / RECALL / F1-Score / SUPPORT")
-    print(classification_report(y_pred.argmax(1), batches.classes))
-    return
+    print(classification_report(true_labels, our_labels))
+    print("-"*80)
+    print("CONFUSION MATRIX")
+    sns.heatmap(confusion_matrix(true_labels, our_labels))
+    print("-"*80)
+
     for c in batches.class_indices:
+        print("-"*80)
+        print(c)
+        print("-"*80)
         class_idx = batches.class_indices[c]
         class_predictions = our_predictions[:,class_idx]
         false_positives = np.where((our_labels == class_idx) & (true_labels != class_idx))[0]
